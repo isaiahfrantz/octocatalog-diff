@@ -36,6 +36,7 @@ The [example configuration file](/examples/octocatalog-diff.cfg.rb) contains an 
 
 When the bootstrap script runs, a limited set of environment variables are passed from the shell running octocatalog-diff. Only these variables are set:
 
+- `BRANCH` (set to the currently bootstrapping branch of your control-repo)
 - `HOME`
 - `PATH`
 - `PWD` (set to the base directory of your Puppet checkout)
@@ -55,4 +56,20 @@ Or you may specify it in your configuration file:
 settings[:bootstrap_environment] = {
   'PYTHONPATH' => '/usr/local/lib/python-custom'
 }
+```
+
+## Bootstrap script
+
+If you use an r10k deployed environment in a control-repo, the currently bootstrapping branch of is required to deploy the environment:
+
+```
+#!/usr/bin/env bash -x
+
+echo "INFO: running bootstrap with the current env=>$(env)< git BRANCH>${BRANCH}<"
+
+# fix basedir in repos r10k.yaml (default is probably /etc/puppetlabs/puppet/environments)
+sed -i "s/basedir.*\$/basedir: $PWD\/environments/" r10k.yaml
+
+r10k deploy environment $BRANCH -pv
+
 ```

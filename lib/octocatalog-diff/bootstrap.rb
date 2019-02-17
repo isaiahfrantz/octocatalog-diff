@@ -30,6 +30,7 @@ module OctocatalogDiff
       # 'env' sets up the environment variables that will be passed to the script.
       # This is a clean environment.
       env = {
+        'BRANCH' => options[:branch],
         'PWD' => options[:path],
         'HOME' => ENV['HOME'],
         'PATH' => ENV['PATH'],

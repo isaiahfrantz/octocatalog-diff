@@ -49,12 +49,19 @@ describe OctocatalogDiff::Bootstrap do
       before(:each) do
         @d = OctocatalogDiff::Spec.shell_script_for_envvar_testing('bootstrap.sh')
         @env_save = {}
-        %w(JACKPOT HOME PATH PWD).each { |x| @env_save[x] = ENV[x] }
+        %w(BRANCH JACKPOT HOME PATH PWD).each { |x| @env_save[x] = ENV[x] }
       end
 
       after(:each) do
         OctocatalogDiff::Spec.clean_up_tmpdir(@d)
-        %w(JACKPOT HOME PATH PWD).each { |x| ENV[x] = @env_save[x] }
+        %w(BRANCH JACKPOT HOME PATH PWD).each { |x| ENV[x] = @env_save[x] }
+      end
+
+      it 'should execute bootstrap script with BRANCH set to thats_no_moon' do
+        ENV['BRANCH'] = 'thats_no_moon'
+        result = b(path: @d, bootstrap_script: 'script/bootstrap.sh', bootstrap_args: 'BRANCH')
+        expect(result[:status_code]).to eq(32)
+        expect(result[:output].strip).to eq('thats_no_moon')
       end
 
       it 'should execute bootstrap script with PWD set to path' do
