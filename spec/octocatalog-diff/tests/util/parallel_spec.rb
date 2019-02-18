@@ -40,9 +40,10 @@ describe OctocatalogDiff::Util::Parallel do
           # just in case status never equals anything
           count = 100 
           while status.nil? or count > 0
-            status = Process.waitpid2(pid, Process::WNOHANG)
             count -= 1
+            status = Process.waitpid2(pid, Process::WNOHANG)
           end
+          status
         end
       end
 
