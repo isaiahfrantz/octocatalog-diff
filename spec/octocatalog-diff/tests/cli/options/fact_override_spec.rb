@@ -11,5 +11,12 @@ describe OctocatalogDiff::Cli::Options do
       result = run_optparse(args)
       expect(result[:to_fact_override_in]).to eq(['foo=bar', 'baz=buzz'])
     end
+
+    it 'should not split JSON overrides containing commas' do
+      args = ['--fact-override', 'json_list=(json)["a","b","c"]']
+      result = run_optparse(args)
+      expect(result[:to_fact_override_in]).to eq(['json_list=(json)["a","b","c"]'])
+      expect(result[:from_fact_override_in]).to eq(['json_list=(json)["a","b","c"]'])
+    end
   end
 end
