@@ -18,27 +18,43 @@ if defined?(JSON::Ext::Generator::State)
       # @param keys [Array] Keys to exclude
       # @return [Hash] New hash without the specified keys
       def except(*keys)
-        to_h.except(*keys)
+        # Convert to hash by using configure which returns a hash representation
+        # The State class has instance variables that we can't directly access from Ruby
+        # since it's a C extension, so we build a hash from available accessor methods
+        result = {}
+
+        # Try to get values using accessor methods if they exist
+        [:indent, :space, :space_before, :object_nl, :array_nl,
+         :max_nesting, :allow_nan, :ascii_only, :depth, :buffer_initial_length].each do |method|
+          begin
+            result[method] = send(method) if respond_to?(method)
+          rescue
+            # If we can't read the value, skip it
+          end
+        end
+
+        # Return the hash with specified keys removed
+        # Use delete instead of except in case we're in Ruby < 3.0
+        keys.each { |key| result.delete(key) }
+        result
       end
     end
 
     # Ensure to_h method exists and works properly
     unless method_defined?(:to_h)
-      # Convert State to Hash
+      # Convert State to Hash using available accessor methods
       # @return [Hash] Hash representation of state
       def to_h
-        {
-          indent: @indent,
-          space: @space,
-          space_before: @space_before,
-          object_nl: @object_nl,
-          array_nl: @array_nl,
-          max_nesting: @max_nesting,
-          allow_nan: @allow_nan,
-          ascii_only: @ascii_only,
-          depth: @depth,
-          buffer_initial_length: @buffer_initial_length
-        }.compact
+        result = {}
+        [:indent, :space, :space_before, :object_nl, :array_nl,
+         :max_nesting, :allow_nan, :ascii_only, :depth, :buffer_initial_length].each do |method|
+          begin
+            result[method] = send(method) if respond_to?(method)
+          rescue
+            # If we can't read the value, skip it
+          end
+        end
+        result
       end
     end
   end
