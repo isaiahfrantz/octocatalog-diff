@@ -50,6 +50,9 @@ module OctocatalogDiff
         create_structure
         create_symlinks(logger)
 
+        # Install puppet.conf if specified (before other configs that may depend on it)
+        install_puppet_conf(logger, options) if options[:puppet_conf] || options[:puppet_config]
+
         # These configurations are optional. Don't call the methods if parameters are nil.
         unless options[:puppetdb_url].nil?
           install_puppetdb_conf(logger, options[:puppetdb_url], options[:puppetdb_server_url_timeout])
@@ -406,6 +409,138 @@ module OctocatalogDiff
         password_outfile = File.join(@tempdir, 'var', 'ssl', 'private', 'password')
         File.open(password_outfile, 'w') { |f| f.write(password) }
         logger.debug "Installed SSL client key password in #{password_outfile}"
+      end
+
+      # Install puppet.conf file in temporary directory
+      # @param logger [Logger] Logger object
+      # @param options [Hash] Options hash containing :puppet_conf and/or :puppet_config
+      def install_puppet_conf(logger, options)
+        puppet_conf_content = []
+
+        # Start with content from puppet.conf file if provided
+        if options[:puppet_conf]
+          file_src = resolve_puppet_conf_path(options[:puppet_conf], options)
+          raise Errno::ENOENT, "puppet.conf (#{file_src}) wasn't found" unless File.file?(file_src)
+          puppet_conf_content = File.read(file_src).lines.map(&:chomp)
+          logger.debug("Loaded puppet.conf from #{file_src}")
+        end
+
+        # Apply settings from puppet_config array if provided
+        if options[:puppet_config].is_a?(Array) && options[:puppet_config].any?
+          puppet_conf_content = apply_puppet_config_settings(puppet_conf_content, options[:puppet_config], logger)
+        end
+
+        # Write the file if we have any content
+        return if puppet_conf_content.empty?
+
+        puppet_conf_path = File.join(@tempdir, 'puppet.conf')
+        File.open(puppet_conf_path, 'w') { |f| f.write(puppet_conf_content.join("\n") + "\n") }
+        logger.debug("Installed puppet.conf file at #{puppet_conf_path}")
+      end
+
+      # Resolve the path to puppet.conf file
+      # @param puppet_conf [String] Path to puppet.conf (relative or absolute)
+      # @param options [Hash] Options hash
+      # @return [String] Resolved absolute path
+      def resolve_puppet_conf_path(puppet_conf, options)
+        return puppet_conf if puppet_conf.start_with?('/')
+
+        # Try relative to basedir first
+        basedir = options[:basedir] || Dir.pwd
+        basedir_path = File.join(basedir, puppet_conf)
+        return basedir_path if File.file?(basedir_path)
+
+        # Try relative to environment
+        env_path = File.join(@tempdir, 'environments', environment, puppet_conf)
+        return env_path if File.file?(env_path)
+
+        # Return basedir path for error message
+        basedir_path
+      end
+
+      # Apply puppet_config settings to puppet.conf content
+      # @param content [Array<String>] Existing puppet.conf lines
+      # @param settings [Array<String>] Settings in 'setting=value' or 'section/setting=value' format
+      # @param logger [Logger] Logger object
+      # @return [Array<String>] Modified content
+      def apply_puppet_config_settings(content, settings, logger)
+        # Parse existing content into sections
+        sections = parse_puppet_conf(content)
+
+        settings.each do |setting_str|
+          section, key, value = parse_puppet_config_setting(setting_str)
+          sections[section] ||= {}
+          old_value = sections[section][key]
+          sections[section][key] = value
+          if old_value
+            logger.debug("Override puppet.conf [#{section}] #{key} from #{old_value.inspect} to #{value.inspect}")
+          else
+            logger.debug("Set puppet.conf [#{section}] #{key} = #{value.inspect}")
+          end
+        end
+
+        # Rebuild puppet.conf content
+        build_puppet_conf(sections)
+      end
+
+      # Parse puppet.conf content into a hash of sections
+      # @param content [Array<String>] Lines from puppet.conf
+      # @return [Hash] Hash of section => { key => value }
+      def parse_puppet_conf(content)
+        sections = {}
+        current_section = 'main'
+
+        content.each do |line|
+          line = line.strip
+          next if line.empty? || line.start_with?('#')
+
+          if line =~ /\A\[(\w+)\]\z/
+            current_section = Regexp.last_match(1)
+            sections[current_section] ||= {}
+          elsif line =~ /\A(\w+)\s*=\s*(.+)\z/
+            sections[current_section] ||= {}
+            sections[current_section][Regexp.last_match(1)] = Regexp.last_match(2).strip
+          end
+        end
+
+        sections
+      end
+
+      # Parse a puppet config setting string
+      # @param setting_str [String] Setting in 'setting=value' or 'section/setting=value' format
+      # @return [Array] [section, key, value]
+      def parse_puppet_config_setting(setting_str)
+        if setting_str =~ %r{\A(\w+)/(\w+)=(.+)\z}
+          [Regexp.last_match(1), Regexp.last_match(2), Regexp.last_match(3)]
+        elsif setting_str =~ /\A(\w+)=(.+)\z/
+          ['main', Regexp.last_match(1), Regexp.last_match(2)]
+        else
+          raise ArgumentError, "Invalid puppet config format: #{setting_str}"
+        end
+      end
+
+      # Build puppet.conf content from sections hash
+      # @param sections [Hash] Hash of section => { key => value }
+      # @return [Array<String>] Lines for puppet.conf
+      def build_puppet_conf(sections)
+        result = []
+
+        # Output 'main' section first if it exists
+        if sections['main'] && sections['main'].any?
+          result << '[main]'
+          sections['main'].each { |k, v| result << "#{k} = #{v}" }
+        end
+
+        # Output other sections
+        sections.each do |section, settings|
+          next if section == 'main'
+          next if settings.empty?
+          result << '' unless result.empty?
+          result << "[#{section}]"
+          settings.each { |k, v| result << "#{k} = #{v}" }
+        end
+
+        result
       end
 
       def environment

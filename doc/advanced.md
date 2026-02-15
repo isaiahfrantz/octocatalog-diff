@@ -16,6 +16,7 @@ See also:
 
 - [Bootstrapping your Puppet checkout](/doc/advanced-bootstrap.md)
 - [Building catalogs instead of diffing catalogs](/doc/advanced-catalog-only.md)
+- [Configuring puppet.conf for catalog compilation](/doc/advanced-puppet-conf.md)
 - [Enabling storeconfigs for exported resources in PuppetDB](/doc/advanced-storeconfigs.md)
 - [Fetching catalogs from Puppet Master / PuppetServer](/doc/advanced-puppet-master.md)
 - [Overriding ENC parameters](/doc/advanced-override-enc.md)

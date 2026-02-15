@@ -9,6 +9,14 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.5.0</td>
+<td>2026-02-14</td>
+<td>
+<li>(Enhancement) Add --puppet-conf and --puppet-config options to pass puppet configuration settings during catalog compilation (code and tests by Claude Opus 4.5)</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.1.0</td>
 <td>2020-02-18</td>
 <td>
