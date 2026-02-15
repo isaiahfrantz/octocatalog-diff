@@ -959,4 +959,95 @@ describe OctocatalogDiff::CatalogUtil::BuildDir do
       end.to raise_error(ArgumentError, /--puppetdb-ssl-ca must be provided for client auth/)
     end
   end
+
+  describe '#install_puppet_conf' do
+    let(:default_options) do
+      {
+        basedir: OctocatalogDiff::Spec.fixture_path('repos/default'),
+        facts_terminus: 'facter'
+      }
+    end
+
+    context 'with puppet_conf file' do
+      it 'should copy puppet.conf to tempdir' do
+        puppet_conf_fixture = OctocatalogDiff::Spec.fixture_path('puppet-conf/basic.conf')
+        options = default_options.merge(puppet_conf: puppet_conf_fixture)
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+
+        puppet_conf = File.join(testobj.tempdir, 'puppet.conf')
+        expect(File.file?(puppet_conf)).to eq(true)
+        content = File.read(puppet_conf)
+        expect(content).to include('[main]')
+        expect(content).to include('basemodulepath = /etc/puppetlabs/code/modules')
+        expect(content).to include('[agent]')
+        expect(content).to include('server = puppet.example.com')
+      end
+    end
+
+    context 'with puppet_config settings' do
+      it 'should create puppet.conf with settings' do
+        options = default_options.merge(puppet_config: ['basemodulepath=/opt/modules', 'environment_timeout=unlimited'])
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+
+        puppet_conf = File.join(testobj.tempdir, 'puppet.conf')
+        expect(File.file?(puppet_conf)).to eq(true)
+        content = File.read(puppet_conf)
+        expect(content).to include('[main]')
+        expect(content).to include('basemodulepath = /opt/modules')
+        expect(content).to include('environment_timeout = unlimited')
+      end
+
+      it 'should handle section/setting=value format' do
+        options = default_options.merge(puppet_config: ['agent/server=puppet.example.com'])
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+
+        puppet_conf = File.join(testobj.tempdir, 'puppet.conf')
+        content = File.read(puppet_conf)
+        expect(content).to include('[agent]')
+        expect(content).to include('server = puppet.example.com')
+      end
+    end
+
+    context 'with both puppet_conf and puppet_config' do
+      it 'should merge settings from both sources' do
+        puppet_conf_fixture = OctocatalogDiff::Spec.fixture_path('puppet-conf/basic.conf')
+        options = default_options.merge(
+          puppet_conf: puppet_conf_fixture,
+          puppet_config: ['basemodulepath=/override/path']
+        )
+        logger, logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+
+        puppet_conf = File.join(testobj.tempdir, 'puppet.conf')
+        content = File.read(puppet_conf)
+        expect(content).to include('basemodulepath = /override/path')
+        expect(content).not_to include('basemodulepath = /etc/puppetlabs/code/modules')
+        expect(logger_str.string).to include('Override puppet.conf')
+      end
+    end
+
+    context 'with no puppet configuration' do
+      it 'should not create puppet.conf' do
+        options = default_options
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+
+        puppet_conf = File.join(testobj.tempdir, 'puppet.conf')
+        expect(File.file?(puppet_conf)).to eq(false)
+      end
+    end
+
+    context 'with invalid puppet_conf path' do
+      it 'should raise error for non-existent file' do
+        options = default_options.merge(puppet_conf: '/nonexistent/puppet.conf')
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        expect do
+          OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+        end.to raise_error(Errno::ENOENT, /puppet.conf.*wasn't found/)
+      end
+    end
+  end
 end

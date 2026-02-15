@@ -62,6 +62,16 @@ Usage: octocatalog-diff [command line options]
         --from-hiera-path-strip STRING
                                      Path prefix to strip when munging hiera.yaml for the from branch
         --no-hiera-path-strip        Do not use any default hiera path strip settings
+        --puppet-conf STRING         Path to puppet.conf file to copy to compilation directory globally
+        --to-puppet-conf STRING      Path to puppet.conf file to copy to compilation directory for the to branch
+        --from-puppet-conf STRING    Path to puppet.conf file to copy to compilation directory for the from branch
+        --no-puppet-conf             Disable puppet.conf file installation
+        --puppet-config STRING1[,STRING2[,...]]
+                                     Puppet config settings (setting=value or section/setting=value) globally
+        --to-puppet-config STRING1[,STRING2[,...]]
+                                     Puppet config settings (setting=value or section/setting=value) for the to branch
+        --from-puppet-config STRING1[,STRING2[,...]]
+                                     Puppet config settings (setting=value or section/setting=value) for the from branch
         --ignore-attr "attr1,attr2,..."
                                      Attributes to ignore
         --filters FILTER1[,FILTER2[,...]]
@@ -792,6 +802,37 @@ Puppet control repo template, the value of this should be 'hieradata', which is 
 
   <tr>
     <td valign=top>
+      <pre><code>--from-puppet-conf STRING</code></pre>
+    </td>
+    <td valign=top>
+      Path to puppet.conf file to copy to compilation directory for the from branch
+    </td>
+    <td valign=top>
+      Specify a puppet.conf file to be copied to the compilation directory.
+This file will be used during catalog compilation. The path can be absolute
+(starting with /) or relative to the basedir. Use --no-puppet-conf to disable.
+See also: --puppet-config for specifying individual settings. (<a href="../lib/octocatalog-diff/cli/options/puppet_conf.rb">puppet_conf.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--from-puppet-config STRING1[,STRING2[,...]]</code></pre>
+    </td>
+    <td valign=top>
+      Puppet config settings (setting=value or section/setting=value) for the from branch
+    </td>
+    <td valign=top>
+      Specify puppet configuration settings to write to puppet.conf in the compilation directory.
+Settings should be in the format 'setting=value' for the [main] section, or
+'section/setting=value' for other sections (e.g., 'agent/server=puppet.example.com').
+Multiple settings can be specified by using this option multiple times.
+If used with --puppet-conf, these settings override values from the file. (<a href="../lib/octocatalog-diff/cli/options/puppet_config.rb">puppet_config.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
       <pre><code>--from-puppet-master STRING</code></pre>
     </td>
     <td valign=top>
@@ -1123,6 +1164,21 @@ to ignore any changes for any defined type where this tag is set. (<a href="../l
 
   <tr>
     <td valign=top>
+      <pre><code>--no-puppet-conf </code></pre>
+    </td>
+    <td valign=top>
+      Disable puppet.conf file installation
+    </td>
+    <td valign=top>
+      Specify a puppet.conf file to be copied to the compilation directory.
+This file will be used during catalog compilation. The path can be absolute
+(starting with /) or relative to the basedir. Use --no-puppet-conf to disable.
+See also: --puppet-config for specifying individual settings. (<a href="../lib/octocatalog-diff/cli/options/puppet_conf.rb">puppet_conf.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
       <pre><code>-o FILENAME
 --output-file FILENAME</code></pre>
     </td>
@@ -1333,6 +1389,37 @@ to work correctly. (<a href="../lib/octocatalog-diff/cli/options/preserve_enviro
     </td>
     <td valign=top>
       Set --puppet-binary, --to-puppet-binary, --from-puppet-binary (<a href="../lib/octocatalog-diff/cli/options/puppet_binary.rb">puppet_binary.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--puppet-conf STRING</code></pre>
+    </td>
+    <td valign=top>
+      Path to puppet.conf file to copy to compilation directory globally
+    </td>
+    <td valign=top>
+      Specify a puppet.conf file to be copied to the compilation directory.
+This file will be used during catalog compilation. The path can be absolute
+(starting with /) or relative to the basedir. Use --no-puppet-conf to disable.
+See also: --puppet-config for specifying individual settings. (<a href="../lib/octocatalog-diff/cli/options/puppet_conf.rb">puppet_conf.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--puppet-config STRING1[,STRING2[,...]]</code></pre>
+    </td>
+    <td valign=top>
+      Puppet config settings (setting=value or section/setting=value) globally
+    </td>
+    <td valign=top>
+      Specify puppet configuration settings to write to puppet.conf in the compilation directory.
+Settings should be in the format 'setting=value' for the [main] section, or
+'section/setting=value' for other sections (e.g., 'agent/server=puppet.example.com').
+Multiple settings can be specified by using this option multiple times.
+If used with --puppet-conf, these settings override values from the file. (<a href="../lib/octocatalog-diff/cli/options/puppet_config.rb">puppet_config.rb</a>)
     </td>
   </tr>
 
@@ -1860,6 +1947,37 @@ Puppet control repo template, the value of this should be 'hieradata', which is 
     </td>
     <td valign=top>
       Set --puppet-binary, --to-puppet-binary, --from-puppet-binary (<a href="../lib/octocatalog-diff/cli/options/puppet_binary.rb">puppet_binary.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--to-puppet-conf STRING</code></pre>
+    </td>
+    <td valign=top>
+      Path to puppet.conf file to copy to compilation directory for the to branch
+    </td>
+    <td valign=top>
+      Specify a puppet.conf file to be copied to the compilation directory.
+This file will be used during catalog compilation. The path can be absolute
+(starting with /) or relative to the basedir. Use --no-puppet-conf to disable.
+See also: --puppet-config for specifying individual settings. (<a href="../lib/octocatalog-diff/cli/options/puppet_conf.rb">puppet_conf.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--to-puppet-config STRING1[,STRING2[,...]]</code></pre>
+    </td>
+    <td valign=top>
+      Puppet config settings (setting=value or section/setting=value) for the to branch
+    </td>
+    <td valign=top>
+      Specify puppet configuration settings to write to puppet.conf in the compilation directory.
+Settings should be in the format 'setting=value' for the [main] section, or
+'section/setting=value' for other sections (e.g., 'agent/server=puppet.example.com').
+Multiple settings can be specified by using this option multiple times.
+If used with --puppet-conf, these settings override values from the file. (<a href="../lib/octocatalog-diff/cli/options/puppet_config.rb">puppet_config.rb</a>)
     </td>
   </tr>
 

@@ -153,6 +153,27 @@ module OctocatalogDiff
       # settings[:enc] = 'environments/production/config/enc.sh' # Relative path
 
       ##############################################################################################
+      # puppet_conf
+      #   Path to a puppet.conf file to copy to the compilation directory. If the path starts
+      #   with a `/`, it is treated as an absolute path. Otherwise, it's treated as relative
+      #   to the basedir. The puppet.conf file will be used during catalog compilation.
+      ##############################################################################################
+
+      # settings[:puppet_conf] = '/etc/puppetlabs/puppet/puppet.conf' # Absolute path
+      # settings[:puppet_conf] = 'puppet.conf' # Relative path
+
+      ##############################################################################################
+      # puppet_config
+      #   An array of puppet configuration settings to write to puppet.conf in the compilation
+      #   directory. Settings should be in the format 'setting=value' for the [main] section,
+      #   or 'section/setting=value' for other sections. If used with :puppet_conf, these
+      #   settings will override values from the file.
+      ##############################################################################################
+
+      # settings[:puppet_config] = ['basemodulepath=/opt/modules', 'environment_timeout=unlimited']
+      # settings[:puppet_config] = ['agent/server=puppet.example.com'] # For [agent] section
+
+      ##############################################################################################
       # storeconfigs
       #   If you are using exported/collected resources from PuppetDB, you must enable the
       #   `storeconfigs` option. If you are not using exported/collected resources, then you
