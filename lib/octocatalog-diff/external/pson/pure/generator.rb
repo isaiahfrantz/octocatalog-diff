@@ -71,7 +71,13 @@ module PSON
           when Hash
             new(opts)
           else
-            new
+            # Handle JSON::Ext::Generator::State or other state-like objects
+            # that respond to to_h (compatibility with JSON gem 2.7+ and Ruby 3.2+)
+            if opts.respond_to?(:to_h)
+              new(opts.to_h)
+            else
+              new
+            end
           end
         end
 
