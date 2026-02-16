@@ -9,4 +9,10 @@ if [ -z "$OCD_PUPPET_BINARY" ]; then
   exit 255
 fi
 
+# Load JSON State monkey patch for Ruby 3.0+ / Puppet 8 compatibility
+# This adds the 'except' method to JSON::Ext::Generator::State
+if [ -n "$OCD_JSON_STATE_PATCH" ]; then
+  export RUBYOPT="-r${OCD_JSON_STATE_PATCH} ${RUBYOPT}"
+fi
+
 "$OCD_PUPPET_BINARY" "$@"

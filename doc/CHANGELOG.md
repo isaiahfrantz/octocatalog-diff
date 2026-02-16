@@ -10,9 +10,10 @@
 
 <tr valign=top>
 <td>2.5.0</td>
-<td>2026-02-14</td>
+<td>2026-02-15</td>
 <td>
-<li>(Enhancement) Add --puppet-conf and --puppet-config options to pass puppet configuration settings during catalog compilation (code and tests by Claude Opus 4.5)</li>
+<li>(Enhancement) Add --puppet-conf and --puppet-config options to pass puppet configuration settings during catalog compilation (code and tests by Claude Sonnet 4.5)</li>
+<li>(Bug Fix) Add Ruby 3.0+ / Puppet 8 compatibility by monkey-patching JSON::Ext::Generator::State to support Hash#except method; loads patch in both octocatalog-diff and Puppet subprocesses (fix by Claude Sonnet 4.5)</li>
 </td>
 </tr>
 

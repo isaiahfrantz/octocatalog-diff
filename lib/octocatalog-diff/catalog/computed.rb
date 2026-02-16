@@ -164,6 +164,11 @@ module OctocatalogDiff
         # This is the Puppet command itself
         env['OCD_PUPPET_BINARY'] = @puppet_command_obj.puppet_binary
 
+        # Pass the path to JSON State monkey patch for Ruby 3.0+ / Puppet 8 compatibility
+        # This will be loaded by the puppet.sh script via RUBYOPT
+        json_state_patch = File.expand_path('../monkey_patches/json_state', File.dirname(__FILE__))
+        env['OCD_JSON_STATE_PATCH'] = json_state_patch if File.exist?("#{json_state_patch}.rb")
+
         # Additional passed-in options
         sr_run_opts = env.merge(
           logger: logger,
