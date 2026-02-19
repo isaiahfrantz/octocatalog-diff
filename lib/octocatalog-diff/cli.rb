@@ -133,7 +133,7 @@ module OctocatalogDiff
         end
         results.sort_by { |r| r[:node] }.each do |result|
           $stderr.print result[:log_content]
-          puts result[:diff_text] unless result[:diff_text].empty?
+          $stderr.puts result[:diff_text] unless result[:diff_text].empty?
         end
         results.map { |r| r[:catalog_diff] }
       end
