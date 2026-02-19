@@ -102,12 +102,40 @@ describe OctocatalogDiff::Cli do
         # Under rspec the parallel gem collides with octocatalog-diff's parallel execution
         # implementation, so work around by disabling octocatalog-diff's parallel execution
         # just for this one test.
+        # With multiple nodes, output is buffered per-node and flushed to $stderr in sorted order.
         opts = { additional_argv: %w(--hostname octonode1.rspec,octonode2.rspec --no-parallel) }
-        logger, logger_str = OctocatalogDiff::Spec.setup_logger
-        result = OctocatalogDiff::Cli.cli(default_argv, logger, opts)
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        captured_stderr = StringIO.new
+        original_stderr = $stderr
+        $stderr = captured_stderr
+        begin
+          result = OctocatalogDiff::Cli.cli(default_argv.dup, logger, opts)
+        ensure
+          $stderr = original_stderr
+        end
         expect(result).to eq(0)
-        expect(logger_str.string).to match(/Catalogs compiled for octonode1.rspec/)
-        expect(logger_str.string).to match(/Catalogs compiled for octonode2.rspec/)
+        expect(captured_stderr.string).to match(/Catalogs compiled for octonode1.rspec/)
+        expect(captured_stderr.string).to match(/Catalogs compiled for octonode2.rspec/)
+      end
+
+      it 'should print multi-node output sorted alphabetically by node name' do
+        # Nodes are passed in reverse order (z before a) to prove sorting is applied
+        opts = { additional_argv: %w(--hostname z_node.rspec,a_node.rspec --no-parallel) }
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        captured_stderr = StringIO.new
+        original_stderr = $stderr
+        $stderr = captured_stderr
+        begin
+          OctocatalogDiff::Cli.cli(default_argv.dup, logger, opts)
+        ensure
+          $stderr = original_stderr
+        end
+        stderr_content = captured_stderr.string
+        a_pos = stderr_content.index('a_node.rspec')
+        z_pos = stderr_content.index('z_node.rspec')
+        expect(a_pos).not_to be_nil
+        expect(z_pos).not_to be_nil
+        expect(a_pos).to be < z_pos
       end
     end
 
@@ -166,6 +194,77 @@ describe OctocatalogDiff::Cli do
         result = described_class.cli(['--bootstrap-then-exit'])
         expect(result).to eq('yyy')
       end
+    end
+  end
+
+  describe '#run_octocatalog_diff_buffered' do
+    let(:from_catalog) { double('from_catalog', compilation_dir: nil) }
+    let(:to_catalog)   { double('to_catalog',   compilation_dir: nil) }
+    let(:catalog_diff_result) do
+      double('catalog_diff', diffs: [], from: from_catalog, to: to_catalog)
+    end
+
+    before do
+      allow(OctocatalogDiff::API::V1).to receive(:catalog_diff) do |opts|
+        opts[:logger]&.info("Catalogs compiled for #{opts[:node]}")
+        opts[:logger]&.info("Diffs computed for #{opts[:node]}")
+        catalog_diff_result
+      end
+      allow(OctocatalogDiff::CatalogDiff::Display).to receive(:output).and_return('')
+    end
+
+    it 'returns a hash with :node, :catalog_diff, :log_content, and :diff_text keys' do
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_buffered('test.node', {}, Logger::INFO)
+      expect(result).to be_a(Hash)
+      expect(result).to include(:node, :catalog_diff, :log_content, :diff_text)
+    end
+
+    it 'sets :node to the given node name' do
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_buffered('test.node', {}, Logger::INFO)
+      expect(result[:node]).to eq('test.node')
+    end
+
+    it 'captures log messages in :log_content instead of writing to a shared logger' do
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_buffered('test.node', {}, Logger::INFO)
+      expect(result[:log_content]).to match(/Catalogs compiled for test\.node/)
+      expect(result[:log_content]).to match(/Diffs computed for test\.node/)
+    end
+
+    it 'does not write log messages to $stderr during processing' do
+      original_stderr = $stderr
+      captured_stderr = StringIO.new
+      $stderr = captured_stderr
+      begin
+        OctocatalogDiff::Cli.run_octocatalog_diff_buffered('test.node', {}, Logger::INFO)
+      ensure
+        $stderr = original_stderr
+      end
+      expect(captured_stderr.string).to be_empty
+    end
+
+    it 'respects the log level - filters messages below the threshold' do
+      allow(OctocatalogDiff::API::V1).to receive(:catalog_diff) do |opts|
+        opts[:logger]&.debug('debug message should be filtered')
+        opts[:logger]&.info('info message should appear')
+        catalog_diff_result
+      end
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_buffered('test.node', {}, Logger::INFO)
+      expect(result[:log_content]).not_to match(/debug message/)
+      expect(result[:log_content]).to match(/info message/)
+    end
+
+    it 'returns :diff_text from Display.output' do
+      allow(OctocatalogDiff::CatalogDiff::Display).to receive(:output).and_return('the diff text')
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_buffered('test.node', {}, Logger::INFO)
+      expect(result[:diff_text]).to eq('the diff text')
+    end
+
+    it 'passes node name into options for catalog_diff' do
+      expect(OctocatalogDiff::API::V1).to receive(:catalog_diff) do |opts|
+        expect(opts[:node]).to eq('mynode.example.com')
+        catalog_diff_result
+      end
+      OctocatalogDiff::Cli.run_octocatalog_diff_buffered('mynode.example.com', {}, Logger::INFO)
     end
   end
 

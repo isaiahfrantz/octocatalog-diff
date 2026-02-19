@@ -9,6 +9,14 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.5.1</td>
+<td>2026-02-19</td>
+<td>
+<li>(Enhancement) Buffer per-node log and diff output when running with multiple hostnames, then flush in alphabetical node order to prevent interleaved output (code and tests by Claude Sonnet 4.6)</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.5.0</td>
 <td>2026-02-15</td>
 <td>

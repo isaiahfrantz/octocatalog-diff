@@ -13,6 +13,7 @@ require_relative 'version'
 require 'logger'
 require 'parallel'
 require 'socket'
+require 'stringio'
 
 module OctocatalogDiff
   # This is the CLI for catalog-diff. It's responsible for parsing the command line
@@ -126,7 +127,15 @@ module OctocatalogDiff
       catalog_diffs = if node_set.size == 1
         [run_octocatalog_diff(node_set.first, options, logger)]
       else
-        ::Parallel.map(node_set, in_threads: 4) { |node| run_octocatalog_diff(node, options, logger) }
+        log_level = logger.level
+        results = ::Parallel.map(node_set, in_threads: 4) do |node|
+          run_octocatalog_diff_buffered(node, options, log_level)
+        end
+        results.sort_by { |r| r[:node] }.each do |result|
+          $stderr.print result[:log_content]
+          puts result[:diff_text] unless result[:diff_text].empty?
+        end
+        results.map { |r| r[:catalog_diff] }
       end
 
       # Return the resulting diff object if requested (generally for testing)
@@ -159,6 +168,29 @@ module OctocatalogDiff
 
       # Return catalog-diff object.
       catalog_diff
+    end
+
+    # Run octocatalog-diff for a node, buffering all output for ordered display.
+    # Captures log messages and diff text so the caller can flush them in sorted order.
+    # node      - String with the node name
+    # options   - All of the currently defined options
+    # log_level - Logger level (e.g. Logger::INFO) to use for the buffered logger
+    def self.run_octocatalog_diff_buffered(node, options, log_level)
+      buf = StringIO.new
+      node_logger = Logger.new(buf)
+      node_logger.level = log_level
+
+      options_copy = options.merge(node: node)
+      catalog_diff = OctocatalogDiff::API::V1.catalog_diff(options_copy.merge(logger: node_logger))
+      diffs = catalog_diff.diffs
+
+      display_opts = options_copy.merge(
+        compilation_from_dir: catalog_diff.from.compilation_dir,
+        compilation_to_dir: catalog_diff.to.compilation_dir
+      )
+      diff_text = OctocatalogDiff::CatalogDiff::Display.output(diffs, display_opts, node_logger)
+
+      { node: node, catalog_diff: catalog_diff, log_content: buf.string, diff_text: diff_text }
     end
 
     # Parse command line options with 'optparse'. Returns a hash with the parsed arguments.
