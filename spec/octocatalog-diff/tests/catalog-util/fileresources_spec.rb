@@ -332,6 +332,119 @@ describe OctocatalogDiff::CatalogUtil::FileResources do
         OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
       end.not_to raise_error
     end
+
+    it 'should strip trailing newlines when ignore_file_end_newline is true' do
+      # Set up test - create file with trailing newline
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      obj.options[:ignore_file_end_newline] = true
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write "foo with newline\n" }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # The newline should be stripped
+      expect(obj.resources[2]['parameters']['content']).to eq('foo with newline')
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
+
+    it 'should keep trailing newlines when ignore_file_end_newline is false' do
+      # Set up test - create file with trailing newline
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      obj.options[:ignore_file_end_newline] = false
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write "foo with newline\n" }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # The newline should be preserved
+      expect(obj.resources[2]['parameters']['content']).to eq("foo with newline\n")
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
+
+    it 'should preserve trailing newlines by default when ignore_file_end_newline is not set' do
+      # Set up test - create file with trailing newline
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      # Don't set ignore_file_end_newline, should default to false (preserving newlines)
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write "foo with newline\n" }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # The newline should be preserved by default
+      expect(obj.resources[2]['parameters']['content']).to eq("foo with newline\n")
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
+
+    it 'should strip trailing newline when ignore_file_end_newline is true' do
+      # Set up test - create file with trailing newline
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      obj.options[:ignore_file_end_newline] = true
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write "foo\n" }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # chomp! removes the trailing newline
+      expect(obj.resources[2]['parameters']['content']).to eq('foo')
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
+
+    it 'should handle files with multiple trailing newlines when ignore_file_end_newline is true' do
+      # Set up test - create file with multiple trailing newlines
+      # Note: chomp! removes only ONE trailing newline
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      obj.options[:ignore_file_end_newline] = true
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write "foo\n\n\n" }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # chomp! removes only one trailing newline
+      expect(obj.resources[2]['parameters']['content']).to eq("foo\n\n")
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
+
+    it 'should handle files without trailing newlines when ignore_file_end_newline is true' do
+      # Set up test - create file without trailing newline
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      obj.options[:ignore_file_end_newline] = true
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write 'foo no newline' }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # chomp! on a string with no trailing newline is a no-op
+      expect(obj.resources[2]['parameters']['content']).to eq('foo no newline')
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
+
+    it 'should still compute md5sum correctly with ignore_file_end_newline for binary files' do
+      # Set up test - create file with non-ASCII characters
+      obj = catalog_from_fixture('catalogs/catalog-test-file-v4.json')
+      obj.compilation_dir = @tmpdir
+      obj.options[:ignore_file_end_newline] = true
+      File.open(File.join(@tmpdir, 'modules', 'test', 'files', 'tmp', 'foo'), 'w') { |f| f.write "\u0256\n" }
+
+      # Perform test
+      OctocatalogDiff::CatalogUtil::FileResources.convert_file_resources(obj)
+      expect(obj.resources).to be_a_kind_of(Array)
+      expect(obj.resources.size).to eq(3)
+      # Should still be md5sum since content is binary
+      expect(obj.resources[2]['parameters']['content']).to match(/^{md5}/)
+      expect(obj.resources[2]['parameters'].key?('source')).to eq(false)
+    end
   end
 
   describe '#resource_convertible?' do

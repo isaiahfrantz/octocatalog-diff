@@ -9,6 +9,14 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.6.0</td>
+<td>2026-03-05</td>
+<td>
+<li>(Enhancement) Add --ignore-file-end-newline option to strip trailing newlines from file contents before comparison, preventing spurious "No newline at end of file" messages</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.5.1</td>
 <td>2026-02-19</td>
 <td>

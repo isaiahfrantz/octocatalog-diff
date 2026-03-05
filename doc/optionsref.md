@@ -81,6 +81,7 @@ Usage: octocatalog-diff [command line options]
                                      References to validate
         --[no-]compare-file-text[=force]
                                      Compare text, not source location, of file resources
+        --ignore-file-end-newline    Ignore trailing newlines in file comparison
         --[no-]storeconfigs          Enable integration with puppetdb for collected resources
         --storeconfigs-backend TERMINUS
                                      Set the terminus used for storeconfigs
@@ -1047,6 +1048,20 @@ work with the `catalog-only` or `bootstrap-then-exit` options. (<a href="../lib/
     </td>
     <td valign=top>
       Specify attributes to ignore (<a href="../lib/octocatalog-diff/cli/options/ignore_attr.rb">ignore_attr.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--ignore-file-end-newline </code></pre>
+    </td>
+    <td valign=top>
+      Ignore trailing newlines in file comparison
+    </td>
+    <td valign=top>
+      When comparing file contents, strip trailing newlines from both files before
+the diff. This prevents spurious "No newline at end of file" messages when the
+only difference between two files is the presence or absence of a trailing newline. (<a href="../lib/octocatalog-diff/cli/options/ignore_file_end_newline.rb">ignore_file_end_newline.rb</a>)
     </td>
   </tr>
 

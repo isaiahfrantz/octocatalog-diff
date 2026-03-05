@@ -21,7 +21,8 @@ module OctocatalogDiff
           obj.compilation_dir,
           environment,
           obj.options[:compare_file_text_ignore_tags],
-          obj.options[:tag]
+          obj.options[:tag],
+          obj.options[:ignore_file_end_newline]
         )
         begin
           obj.catalog_json = ::JSON.generate(obj.catalog)
@@ -81,7 +82,8 @@ module OctocatalogDiff
       # @param environment [String] Environment
       # @param ignore_tags [Array<String>] Tags that exempt a resource from conversion
       # @param to_from_tag [String] Either "to" or "from" for catalog type
-      def self._convert_file_resources(resources, compilation_dir, environment, ignore_tags, to_from_tag)
+      # @param ignore_file_end_newline [Boolean] Strip trailing newlines from file content
+      def self._convert_file_resources(resources, compilation_dir, environment, ignore_tags, to_from_tag, ignore_file_end_newline = false)
         # Calculate compilation directory. There is not explicit error checking here because
         # there is on-demand, explicit error checking for each file within the modification loop.
         return unless compilation_dir.is_a?(String) && compilation_dir != ''
@@ -106,6 +108,7 @@ module OctocatalogDiff
               # the 'content' parameter for easier comparison. If not, instead populate the md5sum.
               # Delete the 'source' attribute as well.
               content = File.read(path)
+              content.chomp! if ignore_file_end_newline
               is_ascii = content.force_encoding('UTF-8').ascii_only?
               resource['parameters']['content'] = is_ascii ? content : '{md5}' + Digest::MD5.hexdigest(content)
               resource['parameters'].delete('source')
