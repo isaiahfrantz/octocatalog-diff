@@ -39,6 +39,7 @@ module OctocatalogDiff
         opts[:display_detail_add] = options.fetch(:display_detail_add, false)
         opts[:truncate_details] = options.fetch(:truncate_details, true)
         opts[:display_datatype_changes] = options.fetch(:display_datatype_changes, false)
+        opts[:ignore_file_end_newline] = options.fetch(:ignore_file_end_newline, false)
 
         # Call appropriate display method
         case req_format
