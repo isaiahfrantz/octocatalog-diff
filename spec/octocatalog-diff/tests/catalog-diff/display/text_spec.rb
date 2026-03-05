@@ -333,9 +333,10 @@ describe OctocatalogDiff::CatalogDiff::Display::Text do
             end
 
             it 'should truncate long strings' do
-              expect(@result[2]).to match(/^\s+"content": /)
+              index_content = @result.find_index { |x| x =~ /^\s+"content": / }
+              expect(index_content).not_to be(nil), 'Results missing "content"'
               # Desired line length is 84 because the '..."' adds 4 characters to the truncated length of 80
-              expect(@result[2].length).to eq(84), "Wrong line length for: '#{@result[2]}'"
+              expect(@result[index_content].length).to eq(84), "Wrong line length for: '#{@result[index_content]}'"
             end
 
             it 'should sort keys in parameters hash' do

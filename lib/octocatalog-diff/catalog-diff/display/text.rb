@@ -265,10 +265,6 @@ module OctocatalogDiff
           if single_lines?(string1, string2)
             string1, string2 = add_trailing_newlines(string1, string2, options[:ignore_file_end_newline])
             diff = Diffy::Diff.new(string1, string2, context: 2, include_diff_info: false).to_s.split("\n")
-            # Filter out "No newline at end of file" lines if the option is enabled
-            if options[:ignore_file_end_newline]
-              diff = diff.reject { |line| line =~ /^\\?\s*No newline at end of file/ }
-            end
             return diff.map { |x| left_pad(2 * depth + 2, make_trailing_whitespace_visible(adjust_position_of_plus_minus(x))) }
           end
 
@@ -277,10 +273,6 @@ module OctocatalogDiff
           diff = Diffy::Diff.new(string1, string2, context: 2, include_diff_info: true).to_s.split("\n")
           diff.shift # Remove first line of diff info (filename that makes no sense)
           diff.shift # Remove second line of diff info (filename that makes no sense)
-          # Filter out "No newline at end of file" lines if the option is enabled
-          if options[:ignore_file_end_newline]
-            diff = diff.reject { |line| line =~ /^\\?\s*No newline at end of file/ }
-          end
           diff.map { |x| left_pad(2 * depth + 2, make_trailing_whitespace_visible(x)) }
         end
 
@@ -302,8 +294,8 @@ module OctocatalogDiff
         # @return [Array<String>] Adjusted string_1, string_2
         def self.add_trailing_newlines(string_1, string_2, ignore_file_end_newline = false)
           if ignore_file_end_newline
-            # Strip all trailing newlines from both strings to normalize them
-            [string_1.chomp, string_2.chomp]
+            # Normalize both strings to end with exactly one \n so Diffy never emits "No newline at end of file"
+            [string_1.chomp + "\n", string_2.chomp + "\n"]
           else
             # Original behavior: only add newlines if both lack them
             return [string_1, string_2] unless string_1 !~ /\n\Z/ && string_2 !~ /\n\Z/
@@ -362,10 +354,10 @@ module OctocatalogDiff
           json_old = stringify_for_diffy(hash1)
           json_new = stringify_for_diffy(hash2)
 
-          # Strip trailing newlines if the option is enabled
+          # Normalize trailing newlines if the option is enabled so Diffy never emits "No newline at end of file"
           if options[:ignore_file_end_newline]
-            json_old = json_old.chomp
-            json_new = json_new.chomp
+            json_old = json_old.chomp + "\n"
+            json_new = json_new.chomp + "\n"
           end
 
           # If stripping the diff, we need to make sure diffy does not colorize the output, so that
@@ -376,11 +368,6 @@ module OctocatalogDiff
             Diffy::Diff.new(json_old, json_new, context: 0).to_s.split("\n")
           end
           raise "Diffy diff empty for string: #{json_old}" if diff.empty?
-
-          # Filter out "\ No newline at end of file" lines if the option is enabled
-          if options[:ignore_file_end_newline]
-            diff = diff.reject { |line| line =~ /^\\?\s*No newline at end of file/ }
-          end
 
           # This is the array that is returned
           diff.map do |x|
