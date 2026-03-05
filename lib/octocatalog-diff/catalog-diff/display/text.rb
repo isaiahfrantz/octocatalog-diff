@@ -131,7 +131,7 @@ module OctocatalogDiff
           info_hash = { item: item, result: result, old_loc: old_loc, new_loc: new_loc, options: options, logger: logger }
           add_source_file_line_info(info_hash)
           result << "  #{item} =>"
-          diff.keys.sort.each { |key| result.concat hash_diff(diff[key], 1, key, true) }
+          diff.keys.sort.each { |key| result.concat hash_diff(diff[key], 1, key, true, options) }
           result
         end
 
@@ -257,17 +257,18 @@ module OctocatalogDiff
         # @param string1 [String] First string (-)
         # @param string2 [String] Second string (+)
         # @param depth [Integer] Depth, for correct indentation
+        # @param options [Hash] Options (can include :ignore_file_end_newline)
         # @return Array<String> Displayable result
-        def self.diff_two_strings_with_diffy(string1, string2, depth)
+        def self.diff_two_strings_with_diffy(string1, string2, depth, options = {})
           # Single line strings?
           if single_lines?(string1, string2)
-            string1, string2 = add_trailing_newlines(string1, string2)
+            string1, string2 = add_trailing_newlines(string1, string2, options[:ignore_file_end_newline])
             diff = Diffy::Diff.new(string1, string2, context: 2, include_diff_info: false).to_s.split("\n")
             return diff.map { |x| left_pad(2 * depth + 2, make_trailing_whitespace_visible(adjust_position_of_plus_minus(x))) }
           end
 
           # Multiple line strings
-          string1, string2 = add_trailing_newlines(string1, string2)
+          string1, string2 = add_trailing_newlines(string1, string2, options[:ignore_file_end_newline])
           diff = Diffy::Diff.new(string1, string2, context: 2, include_diff_info: true).to_s.split("\n")
           diff.shift # Remove first line of diff info (filename that makes no sense)
           diff.shift # Remove second line of diff info (filename that makes no sense)
@@ -285,12 +286,20 @@ module OctocatalogDiff
 
         # Add "\n" to the end of both strings, only if both strings are lacking it.
         # This prevents "\\ No newline at end of file" for single string comparison.
+        # When ignore_file_end_newline is true, remove any trailing newlines from both strings.
         # @param string_1 [String] First string
         # @param string_2 [String] Second string
+        # @param ignore_file_end_newline [Boolean] Whether to ignore file end newlines
         # @return [Array<String>] Adjusted string_1, string_2
-        def self.add_trailing_newlines(string_1, string_2)
-          return [string_1, string_2] unless string_1 !~ /\n\Z/ && string_2 !~ /\n\Z/
-          [string_1 + "\n", string_2 + "\n"]
+        def self.add_trailing_newlines(string_1, string_2, ignore_file_end_newline = false)
+          if ignore_file_end_newline
+            # Strip all trailing newlines from both strings to normalize them
+            [string_1.chomp, string_2.chomp]
+          else
+            # Original behavior: only add newlines if both lack them
+            return [string_1, string_2] unless string_1 !~ /\n\Z/ && string_2 !~ /\n\Z/
+            [string_1 + "\n", string_2 + "\n"]
+          end
         end
 
         # Adjust the space after of the `-` / `+` in the diff for single line diffs.
@@ -324,10 +333,11 @@ module OctocatalogDiff
 
         # Get the diff of two hashes. Call the 'diffy' gem for this.
         # @param hash1 [Hash] First hash (-)
-        # @param hash1 [Hash] Second hash (+)
+        # @param hash2 [Hash] Second hash (+)
         # @param depth [Integer] Depth, for correct indentation
         # @param limit [Integer] Maximum string length
         # @param strip_diff [Boolean] Strip leading +/-/" "
+        # @param options [Hash] Display options (can include :ignore_file_end_newline)
         # @return [Array<String>] Displayable result
         def self.diff_two_hashes_with_diffy(opts = {})
           depth = opts.fetch(:depth, 0)
@@ -394,8 +404,11 @@ module OctocatalogDiff
         # Get the diff between two hashes. This is recursive-aware.
         # @param obj [diff object] diff object
         # @param depth [Integer] Depth of nesting, used for indentation
+        # @param key_in [String] The key name
+        # @param nested [Boolean] Whether this is a nested call
+        # @param options [Hash] Display options
         # @return Array<String> Printable diff outputs
-        def self.hash_diff(obj, depth, key_in, nested = false)
+        def self.hash_diff(obj, depth, key_in, nested = false, options = {})
           result = []
           result << left_pad(2 * depth, " #{key_in} =>")
           if obj.key?(:old) && obj.key?(:new)
@@ -405,14 +418,14 @@ module OctocatalogDiff
             elsif obj[:old].is_a?(String) && obj[:new].is_a?(String)
               # Strings will use 'diffy' to mimic the output seen when using
               # "diff" on the command line.
-              result.concat diff_two_strings_with_diffy(obj[:old], obj[:new], depth)
+              result.concat diff_two_strings_with_diffy(obj[:old], obj[:new], depth, options)
             else
               # Stuff we don't recognize will be converted to a string and printed
               # with '+' and '-' unless the object resolves to an empty string.
               result.concat diff_at_depth(depth, obj[:old], obj[:new])
             end
           else
-            obj.keys.sort.each { |key| result.concat hash_diff(obj[key], 1 + depth, key, nested) }
+            obj.keys.sort.each { |key| result.concat hash_diff(obj[key], 1 + depth, key, nested, options) }
           end
           result
         end
