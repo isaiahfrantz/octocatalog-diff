@@ -265,6 +265,10 @@ module OctocatalogDiff
           if single_lines?(string1, string2)
             string1, string2 = add_trailing_newlines(string1, string2, options[:ignore_file_end_newline])
             diff = Diffy::Diff.new(string1, string2, context: 2, include_diff_info: false).to_s.split("\n")
+            # Filter out "No newline at end of file" lines if the option is enabled
+            if options[:ignore_file_end_newline]
+              diff = diff.reject { |line| line =~ /^\\?\s*No newline at end of file/ }
+            end
             return diff.map { |x| left_pad(2 * depth + 2, make_trailing_whitespace_visible(adjust_position_of_plus_minus(x))) }
           end
 
@@ -273,6 +277,10 @@ module OctocatalogDiff
           diff = Diffy::Diff.new(string1, string2, context: 2, include_diff_info: true).to_s.split("\n")
           diff.shift # Remove first line of diff info (filename that makes no sense)
           diff.shift # Remove second line of diff info (filename that makes no sense)
+          # Filter out "No newline at end of file" lines if the option is enabled
+          if options[:ignore_file_end_newline]
+            diff = diff.reject { |line| line =~ /^\\?\s*No newline at end of file/ }
+          end
           diff.map { |x| left_pad(2 * depth + 2, make_trailing_whitespace_visible(x)) }
         end
 
@@ -368,6 +376,11 @@ module OctocatalogDiff
             Diffy::Diff.new(json_old, json_new, context: 0).to_s.split("\n")
           end
           raise "Diffy diff empty for string: #{json_old}" if diff.empty?
+
+          # Filter out "\ No newline at end of file" lines if the option is enabled
+          if options[:ignore_file_end_newline]
+            diff = diff.reject { |line| line =~ /^\\?\s*No newline at end of file/ }
+          end
 
           # This is the array that is returned
           diff.map do |x|
