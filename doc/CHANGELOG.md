@@ -9,6 +9,14 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.6.2</td>
+<td>2026-03-05</td>
+<td>
+<li>(Bug Fix) Suppress "No newline at end of file" markers by normalizing strings to end with exactly one newline before passing to Diffy, rather than filtering Diffy output after the fact</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.6.0</td>
 <td>2026-03-05</td>
 <td>
