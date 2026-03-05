@@ -177,7 +177,8 @@ module OctocatalogDiff
                 depth: 1,
                 hash2: Hash[diff['parameters'].sort], # Should work with somewhat older rubies too
                 limit: limit,
-                strip_diff: true
+                strip_diff: true,
+                options: options
               ).map(&:green)
             )
           else
@@ -345,12 +346,19 @@ module OctocatalogDiff
           hash2 = opts.fetch(:hash2, {})
           limit = opts[:limit]
           strip_diff = opts.fetch(:strip_diff, false)
+          options = opts.fetch(:options, {})
 
           # Special case: addition only, no truncation
           return addition_only_no_truncation(depth, hash2) if hash1 == {} && limit.nil?
 
           json_old = stringify_for_diffy(hash1)
           json_new = stringify_for_diffy(hash2)
+
+          # Strip trailing newlines if the option is enabled
+          if options[:ignore_file_end_newline]
+            json_old = json_old.chomp
+            json_new = json_new.chomp
+          end
 
           # If stripping the diff, we need to make sure diffy does not colorize the output, so that
           # there are not color codes in the output to deal with.
@@ -414,7 +422,7 @@ module OctocatalogDiff
           if obj.key?(:old) && obj.key?(:new)
             if nested && obj[:old].is_a?(Hash) && obj[:new].is_a?(Hash)
               # Nested hashes will be stringified and then use 'diffy'
-              result.concat diff_two_hashes_with_diffy(depth: depth, hash1: obj[:old], hash2: obj[:new])
+              result.concat diff_two_hashes_with_diffy(depth: depth, hash1: obj[:old], hash2: obj[:new], options: options)
             elsif obj[:old].is_a?(String) && obj[:new].is_a?(String)
               # Strings will use 'diffy' to mimic the output seen when using
               # "diff" on the command line.
