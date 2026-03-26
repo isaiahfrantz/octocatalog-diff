@@ -9,6 +9,14 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.7.0</td>
+<td>2026-03-26</td>
+<td>
+<li>(Enhancement) Print per-node output immediately as each host completes rather than buffering until all nodes finish, using a mutex to prevent interleaving</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.6.2</td>
 <td>2026-03-05</td>
 <td>
