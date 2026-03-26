@@ -128,12 +128,14 @@ module OctocatalogDiff
         [run_octocatalog_diff(node_set.first, options, logger)]
       else
         log_level = logger.level
+        mutex = Mutex.new
         results = ::Parallel.map(node_set, in_threads: 4) do |node|
-          run_octocatalog_diff_buffered(node, options, log_level)
-        end
-        results.sort_by { |r| r[:node] }.each do |result|
-          $stderr.print result[:log_content]
-          $stderr.puts result[:diff_text] unless result[:diff_text].empty?
+          result = run_octocatalog_diff_buffered(node, options, log_level)
+          mutex.synchronize do
+            $stderr.print result[:log_content]
+            $stderr.puts result[:diff_text] unless result[:diff_text].empty?
+          end
+          result
         end
         results.map { |r| r[:catalog_diff] }
       end
