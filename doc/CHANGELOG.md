@@ -9,6 +9,18 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.8.0</td>
+<td>2026-04-08</td>
+<td>
+<li>(Enhancement) Run catalog-diff for multiple nodes in parallel using fork-based concurrency: each node's from/to compilation runs concurrently, and per-node output is printed immediately as each node completes</li>
+<li>(Enhancement) Add <code>on_result:</code> callback and <code>fail_fast:</code> keyword arguments to <code>Util::Parallel.run_tasks</code>; replace busy-poll wait loop with blocking <code>Process.wait2</code> to avoid wasting CPU while children run</li>
+<li>(Enhancement) Clear <code>OCTOCATALOG_DIFF_TEMPDIR</code> in forked node children so nested catalog-compilation forks create independent IPC tempdirs rather than nesting inside the parent's</li>
+<li>(Bug Fix) Configure Diffy with an absolute path to the system <code>diff</code> binary at load time, preventing "Can't find a diff executable in PATH" errors in forked child processes where <code>which</code> is unreliable</li>
+<li>(Bug Fix) Add <code>diffutils</code> to the Dockerfile.fedora runtime stage so the <code>diff</code> binary is available in the container</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.7.0</td>
 <td>2026-03-26</td>
 <td>

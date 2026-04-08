@@ -268,6 +268,86 @@ describe OctocatalogDiff::Cli do
     end
   end
 
+  describe '#run_octocatalog_diff_task' do
+    let(:from_catalog) { double('from_catalog', compilation_dir: nil) }
+    let(:to_catalog)   { double('to_catalog',   compilation_dir: nil) }
+    let(:catalog_diff_nodiffs) do
+      double('catalog_diff', diffs: [], from: from_catalog, to: to_catalog)
+    end
+    let(:catalog_diff_withdiffs) do
+      double('catalog_diff', diffs: [['~', 'key', 'old', 'new']], from: from_catalog, to: to_catalog)
+    end
+
+    before do
+      allow(OctocatalogDiff::API::V1).to receive(:catalog_diff) do |opts|
+        opts[:logger]&.info("Catalogs compiled for #{opts[:node]}")
+        catalog_diff_nodiffs
+      end
+      allow(OctocatalogDiff::CatalogDiff::Display).to receive(:output).and_return([])
+    end
+
+    it 'returns a Marshal-safe hash with expected keys' do
+      args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+      logger, = OctocatalogDiff::Spec.setup_logger
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      expect(result).to be_a(Hash)
+      expect(result).to include(:node, :has_diffs, :log_content, :diff_text)
+    end
+
+    it 'sets :node to the node from args' do
+      args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+      logger, = OctocatalogDiff::Spec.setup_logger
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      expect(result[:node]).to eq('task.node')
+    end
+
+    it 'sets :has_diffs to false when there are no diffs' do
+      args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+      logger, = OctocatalogDiff::Spec.setup_logger
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      expect(result[:has_diffs]).to eq(false)
+    end
+
+    it 'sets :has_diffs to true when diffs exist' do
+      allow(OctocatalogDiff::API::V1).to receive(:catalog_diff).and_return(catalog_diff_withdiffs)
+      allow(OctocatalogDiff::CatalogDiff::Display).to receive(:output).and_return(['some diff line'])
+      args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+      logger, = OctocatalogDiff::Spec.setup_logger
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      expect(result[:has_diffs]).to eq(true)
+    end
+
+    it 'captures log output in :log_content' do
+      args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+      logger, = OctocatalogDiff::Spec.setup_logger
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      expect(result[:log_content]).to match(/Catalogs compiled for task\.node/)
+    end
+
+    it 'returns :diff_text as a String (joined from array)' do
+      allow(OctocatalogDiff::CatalogDiff::Display).to receive(:output).and_return(%w[line1 line2])
+      args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+      logger, = OctocatalogDiff::Spec.setup_logger
+      result = OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      expect(result[:diff_text]).to be_a(String)
+      expect(result[:diff_text]).to eq("line1\nline2")
+    end
+
+    it 'does not write to $stderr during processing' do
+      original_stderr = $stderr
+      captured = StringIO.new
+      $stderr = captured
+      begin
+        args = { node: 'task.node', options: {}, log_level: Logger::INFO }
+        logger, = OctocatalogDiff::Spec.setup_logger
+        OctocatalogDiff::Cli.run_octocatalog_diff_task(args, logger)
+      ensure
+        $stderr = original_stderr
+      end
+      expect(captured.string).to be_empty
+    end
+  end
+
   describe '#setup_logger' do
     context 'with custom version specified in environment' do
       before(:each) do

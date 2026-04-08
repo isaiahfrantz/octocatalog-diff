@@ -1662,4 +1662,29 @@ describe OctocatalogDiff::CatalogDiff::Differ do
       end
     end
   end
+
+  describe 'Diffy binary configuration' do
+    # The differ sets Diffy::Diff.default_options[:diff] to an absolute path at load time
+    # so that forked child processes can find the diff binary without relying on `which`.
+
+    it 'sets Diffy default_options[:diff] to an absolute path' do
+      diff_opt = Diffy::Diff.default_options[:diff]
+      # Either the option is set (absolute path) or diff wasn't found on this system
+      if diff_opt
+        expect(diff_opt).to start_with('/')
+        expect(File.executable?(diff_opt)).to eq(true)
+      else
+        # Acceptable if diff is genuinely not installed on this test host
+        candidates = %w[/usr/bin/diff /bin/diff]
+        expect(candidates.none? { |p| File.executable?(p) }).to eq(true)
+      end
+    end
+
+    it 'does not set Diffy default_options[:diff] to a relative path or bare command name' do
+      diff_opt = Diffy::Diff.default_options[:diff]
+      next unless diff_opt
+      expect(diff_opt).not_to eq('diff')
+      expect(diff_opt).not_to match(/\Adiff\s/)
+    end
+  end
 end

@@ -2,6 +2,13 @@
 
 require 'diffy'
 require 'digest'
+
+# Configure Diffy with an absolute path to the diff binary so it uses
+# File.executable? instead of `which diff`, which is unreliable in forked
+# child processes.
+DIFF_CANDIDATES = %w[/usr/bin/diff /bin/diff].freeze
+diff_bin = DIFF_CANDIDATES.find { |p| File.executable?(p) }
+Diffy::Diff.default_options[:diff] = diff_bin if diff_bin
 require 'hashdiff'
 require 'json'
 require 'set'

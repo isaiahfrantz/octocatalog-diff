@@ -538,4 +538,166 @@ describe OctocatalogDiff::Util::Parallel do
       end.to raise_error(ArgumentError, /Element .* must be a OctocatalogDiff::Util::Parallel::Task, not a /)
     end
   end
+
+  context 'on_result: callback' do
+    it 'invokes the callback for each completed task in parallel mode' do
+      class OnResultFoo
+        def work(arg, _logger = nil)
+          arg
+        end
+      end
+
+      c = OnResultFoo.new
+      collected = []
+      callback = ->(r) { collected << r.output }
+
+      tasks = %w[alpha beta gamma].map do |a|
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:work), args: a, description: a)
+      end
+
+      OctocatalogDiff::Util::Parallel.run_tasks(tasks, nil, true, false, on_result: callback)
+      expect(collected.sort).to eq(%w[alpha beta gamma])
+    end
+
+    it 'invokes the callback for each completed task in serial mode' do
+      class OnResultSerial
+        def work(arg, _logger = nil)
+          arg
+        end
+      end
+
+      c = OnResultSerial.new
+      collected = []
+      callback = ->(r) { collected << r.output }
+
+      tasks = %w[one two three].map do |a|
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:work), args: a, description: a)
+      end
+
+      OctocatalogDiff::Util::Parallel.run_tasks(tasks, nil, false, false, on_result: callback)
+      # Serial mode preserves order
+      expect(collected).to eq(%w[one two three])
+    end
+
+    it 'receives a failed Result when a task raises in parallel mode' do
+      class OnResultFail
+        def boom(_arg, _logger = nil)
+          raise 'on_result failure test'
+        end
+      end
+
+      c = OnResultFail.new
+      statuses = []
+      callback = ->(r) { statuses << r.status }
+
+      task = OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:boom), args: 'x', description: 'boom')
+      OctocatalogDiff::Util::Parallel.run_tasks([task], nil, true, false, on_result: callback)
+      expect(statuses).to eq([false])
+    end
+  end
+
+  context 'fail_fast: false' do
+    it 'allows all parallel tasks to complete even when one fails' do
+      class FailFastFoo
+        def succeed(arg, _logger = nil)
+          sleep 0.3
+          File.open(File.join(ENV['OCTOCATALOG_DIFF_TEMPDIR'], arg), 'w') { |f| f.write '' }
+          arg
+        end
+
+        def fail_task(_arg, _logger = nil)
+          raise 'deliberate failure'
+        end
+      end
+
+      c = FailFastFoo.new
+      tasks = [
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:succeed), args: 'file_a', description: 'a'),
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:fail_task), args: 'x', description: 'fail'),
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:succeed), args: 'file_b', description: 'b'),
+      ]
+
+      result = OctocatalogDiff::Util::Parallel.run_tasks(tasks, nil, true, false, fail_fast: false)
+
+      expect(result[0].status).to eq(true)
+      expect(result[1].status).to eq(false)
+      expect(result[2].status).to eq(true)
+
+      # Both 'succeed' tasks should have written their files
+      expect(File.file?(File.join(ENV['OCTOCATALOG_DIFF_TEMPDIR'], 'file_a'))).to eq(true)
+      expect(File.file?(File.join(ENV['OCTOCATALOG_DIFF_TEMPDIR'], 'file_b'))).to eq(true)
+    end
+
+    it 'stops after first failure in serial mode when fail_fast: true (default)' do
+      class FailFastSerial
+        def one(_arg, _logger = nil)
+          raise 'one failed'
+        end
+
+        def two(arg, _logger = nil)
+          arg
+        end
+      end
+
+      c = FailFastSerial.new
+      tasks = [
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:one), args: 'a', description: 'one'),
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:two), args: 'b', description: 'two'),
+      ]
+
+      result = OctocatalogDiff::Util::Parallel.run_tasks(tasks, nil, false, false, fail_fast: true)
+      expect(result[0].status).to eq(false)
+      expect(result[1].status).to eq(nil) # never ran
+    end
+
+    it 'continues after failure in serial mode when fail_fast: false' do
+      class FailFastSerialContinue
+        def one(_arg, _logger = nil)
+          raise 'one failed'
+        end
+
+        def two(arg, _logger = nil)
+          arg
+        end
+      end
+
+      c = FailFastSerialContinue.new
+      tasks = [
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:one), args: 'a', description: 'one'),
+        OctocatalogDiff::Util::Parallel::Task.new(method: c.method(:two), args: 'b', description: 'two'),
+      ]
+
+      result = OctocatalogDiff::Util::Parallel.run_tasks(tasks, nil, false, false, fail_fast: false)
+      expect(result[0].status).to eq(false)
+      expect(result[1].status).to eq(true)
+      expect(result[1].output).to eq('b')
+    end
+  end
+
+  context 'OCTOCATALOG_DIFF_TEMPDIR isolation in forked children' do
+    it 'does not inherit the parent OCTOCATALOG_DIFF_TEMPDIR in nested parallel calls' do
+      # The parent sets OCTOCATALOG_DIFF_TEMPDIR. The forked child must clear it so
+      # any nested run_tasks_parallel call creates its own tempdir rather than nesting
+      # inside the parent's directory (which causes ENOENT when paths get too deep).
+      class TmpdirIsolation
+        def check_env(_arg, _logger = nil)
+          # Return the env var value as seen inside the fork
+          ENV['OCTOCATALOG_DIFF_TEMPDIR'].to_s
+        end
+      end
+
+      parent_tmpdir = ENV['OCTOCATALOG_DIFF_TEMPDIR']
+      c = TmpdirIsolation.new
+      task = OctocatalogDiff::Util::Parallel::Task.new(
+        method: c.method(:check_env), args: nil, description: 'env_check'
+      )
+
+      result = OctocatalogDiff::Util::Parallel.run_tasks([task], nil, true)
+      expect(result[0].status).to eq(true)
+      # The child should have seen an empty/cleared env var
+      expect(result[0].output).to eq('')
+      # The parent's env var should be unchanged
+      expect(ENV['OCTOCATALOG_DIFF_TEMPDIR']).to eq(parent_tmpdir)
+    end
+  end
 end

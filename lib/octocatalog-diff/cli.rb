@@ -1,17 +1,18 @@
 # frozen_string_literal: true
 
 require_relative 'api/v1'
+require_relative 'catalog-diff/display'
 require_relative 'catalog-util/cached_master_directory'
 require_relative 'cli/diffs'
 require_relative 'cli/options'
 require_relative 'cli/printer'
 require_relative 'errors'
 require_relative 'util/catalogs'
+require_relative 'util/parallel'
 require_relative 'util/util'
 require_relative 'version'
 
 require 'logger'
-require 'parallel'
 require 'socket'
 require 'stringio'
 
@@ -123,21 +124,45 @@ module OctocatalogDiff
       node_set = options.delete(:node)
       node_set = [node_set] unless node_set.is_a?(Array)
 
-      # run multiple node diffs in parallel
-      catalog_diffs = if node_set.size == 1
-        [run_octocatalog_diff(node_set.first, options, logger)]
+      # For a single node, run directly (live output, logger passed through).
+      # For multiple nodes, fork one process per node so that each node's from/to
+      # catalog compilation (itself fork-based) runs concurrently without any
+      # thread/Open3 file-descriptor conflicts. Output is printed as each node
+      # finishes rather than waiting for all nodes to complete.
+      if node_set.size == 1
+        catalog_diffs = [run_octocatalog_diff(node_set.first, options, logger)]
       else
-        log_level = logger.level
-        mutex = Mutex.new
-        results = ::Parallel.map(node_set, in_threads: 4) do |node|
-          result = run_octocatalog_diff_buffered(node, options, log_level)
-          mutex.synchronize do
-            $stderr.print result[:log_content]
-            $stderr.puts result[:diff_text] unless result[:diff_text].empty?
+        has_diffs = false
+        any_failures = false
+
+        on_result = lambda do |r|
+          if r.status
+            out = r.output
+            $stderr.print out[:log_content] unless out[:log_content].empty?
+            $stderr.puts out[:diff_text] unless out[:diff_text].empty?
+            has_diffs = true if out[:has_diffs]
+          else
+            node = r.args[:node]
+            $stderr.puts "ERROR: catalog-diff failed for #{node}: #{r.exception.class}: #{r.exception.message}"
+            any_failures = true
           end
-          result
         end
-        results.map { |r| r[:catalog_diff] }
+
+        tasks = node_set.map do |node|
+          OctocatalogDiff::Util::Parallel::Task.new(
+            method: method(:run_octocatalog_diff_task),
+            args: { node: node, options: options, log_level: logger.level },
+            description: node
+          )
+        end
+
+        # fail_fast: false so a single node failure doesn't SIGTERM sibling node processes
+        # mid-compilation (which causes Open3 IOErrors from killed grandchildren).
+        OctocatalogDiff::Util::Parallel.run_tasks(tasks, logger, true, false, on_result: on_result, fail_fast: false)
+
+        return EXITCODE_SUCCESS_WITH_DIFFS if has_diffs
+        return EXITCODE_FAILURE if any_failures
+        return EXITCODE_SUCCESS_NO_DIFFS
       end
 
       # Return the resulting diff object if requested (generally for testing)
@@ -193,6 +218,36 @@ module OctocatalogDiff
       diff_text = OctocatalogDiff::CatalogDiff::Display.output(diffs, display_opts, node_logger)
 
       { node: node, catalog_diff: catalog_diff, log_content: buf.string, diff_text: diff_text }
+    end
+
+    # Run octocatalog-diff for a single node inside a forked child process. Returns a plain,
+    # Marshal-safe hash so it can be passed back to the parent via Parallel's IPC mechanism.
+    # args   - Hash: { node:, options:, log_level: }
+    # logger - Logger provided by the Parallel framework (used for debug/timing only)
+    def self.run_octocatalog_diff_task(args, logger)
+      node      = args[:node]
+      options   = args[:options]
+      log_level = args[:log_level]
+
+      buf = StringIO.new
+      node_logger = Logger.new(buf)
+      node_logger.level = log_level
+
+      options_copy = options.merge(node: node)
+      catalog_diff = OctocatalogDiff::API::V1.catalog_diff(options_copy.merge(logger: node_logger))
+      diffs = catalog_diff.diffs
+
+      display_opts = options_copy.merge(
+        compilation_from_dir: catalog_diff.from.compilation_dir,
+        compilation_to_dir: catalog_diff.to.compilation_dir
+      )
+      diff_text = OctocatalogDiff::CatalogDiff::Display.output(diffs, display_opts, node_logger)
+
+      logger.debug "run_octocatalog_diff_task complete for #{node}: #{diffs.size} diff(s)"
+
+      diff_str = diff_text.is_a?(Array) ? diff_text.join("\n") : diff_text.to_s
+
+      { node: node, has_diffs: diffs.any?, log_content: buf.string, diff_text: diff_str }
     end
 
     # Parse command line options with 'optparse'. Returns a hash with the parsed arguments.

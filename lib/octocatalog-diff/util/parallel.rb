@@ -69,7 +69,7 @@ module OctocatalogDiff
       # @param parallelized [Boolean] True for parallel processing, false for serial processing
       # @param raise_exception [Boolean] True to raise exception immediately if one occurs; false to return exception in results
       # @return [Array<Parallel::Result>] Parallel results (same order as tasks)
-      def self.run_tasks(task_array, logger = nil, parallelized = true, raise_exception = false)
+      def self.run_tasks(task_array, logger = nil, parallelized = true, raise_exception = false, on_result: nil, fail_fast: true)
         # Create a throwaway logger object if one is not given
         logger ||= Logger.new(StringIO.new)
 
@@ -91,7 +91,8 @@ module OctocatalogDiff
         logger.debug "Initialized parallel task result array: size=#{result.size}"
 
         # Execute as per the requested method (serial or parallel) and handle results.
-        exception = parallelized ? run_tasks_parallel(result, task_array, logger) : run_tasks_serial(result, task_array, logger)
+        exception = parallelized ? run_tasks_parallel(result, task_array, logger, on_result: on_result, fail_fast: fail_fast) \
+                                 : run_tasks_serial(result, task_array, logger, on_result: on_result, fail_fast: fail_fast)
         raise exception if exception && raise_exception
         result
       end
@@ -106,7 +107,7 @@ module OctocatalogDiff
       # @param task_array [Array<OctocatalogDiff::Util::Parallel::Task>] Tasks to perform
       # @param logger [Logger] Logger
       # @return [Exception] First exception encountered by a child process; returns nil if no exceptions encountered.
-      def self.run_tasks_parallel(result, task_array, logger)
+      def self.run_tasks_parallel(result, task_array, logger, on_result: nil, fail_fast: true)
         pidmap = {}
         ipc_tempdir = OctocatalogDiff::Util::Util.temp_dir('ocd-ipc-')
 
@@ -115,7 +116,11 @@ module OctocatalogDiff
           # simplecov doesn't see this because it's forked
           # :nocov:
           this_pid = fork do
-            ENV['OCTOCATALOG_DIFF_TEMPDIR'] ||= ipc_tempdir
+            # Clear the parent's IPC tempdir from the environment so that any nested
+            # run_tasks_parallel calls (e.g. from/to catalog compilation inside a per-node
+            # task) create their own independent tempdirs in /tmp rather than nesting
+            # inside ours, which causes ENOENT when paths get too deep or are cleaned up.
+            ENV.delete('OCTOCATALOG_DIFF_TEMPDIR')
             task_result = execute_task(task, logger)
             File.open(File.join(ipc_tempdir, "#{Process.pid}.dat"), 'w') { |f| f.write Marshal.dump(task_result) }
             Kernel.exit! 0 # Kernel.exit! avoids at_exit from parents being triggered by children exiting
@@ -127,16 +132,36 @@ module OctocatalogDiff
           logger.reopen if logger.respond_to?(:reopen)
         end
 
-        # Waiting for children and handling results
+        # Waiting for children and handling results.
+        # Block until any one child exits (no busy-polling), then drain any others
+        # that may have also finished before looping back to wait again.
         while pidmap.any?
-          pidmap.each do |pid|
-            status = Process.waitpid2(pid[0], Process::WNOHANG)
-            next if status.nil?
-            this_pid, exit_obj = status
-            next unless this_pid && pidmap.key?(this_pid)
+          # Blocking wait for the next child to finish - yields the CPU instead of spinning.
+          begin
+            finished_pid, exit_obj = Process.wait2(-1)
+          rescue Errno::ECHILD
+            break
+          end
+
+          # Drain all children that completed (including the one we just waited for,
+          # and any that finished while we were blocked), keeping each pid's exit object.
+          completed = { finished_pid => exit_obj }
+          loop do
+            begin
+              status = Process.waitpid2(-1, Process::WNOHANG)
+            rescue Errno::ECHILD
+              # No children remain at all - stop draining.
+              break
+            end
+            break if status.nil?
+            completed[status[0]] = status[1]
+          end
+
+          completed.each do |this_pid, this_exit|
+            next unless pidmap.key?(this_pid)
             index = pidmap[this_pid][:index]
-            exitstatus = exit_obj.exitstatus
-            raise "PID=#{this_pid} exited abnormally: #{exit_obj.inspect}" if exitstatus.nil?
+            exitstatus = this_exit.exitstatus
+            raise "PID=#{this_pid} exited abnormally: #{this_exit.inspect}" if exitstatus.nil?
             raise "PID=#{this_pid} exited with status #{exitstatus}" unless exitstatus.zero?
 
             input = File.read(File.join(ipc_tempdir, "#{this_pid}.dat"))
@@ -146,8 +171,11 @@ module OctocatalogDiff
 
             logger.debug "PID=#{this_pid} completed in #{time_delta} seconds, #{input.length} bytes"
 
-            next if result[index].status
-            return result[index].exception
+            on_result.call(result[index]) if on_result
+
+            unless result[index].status
+              return result[index].exception if fail_fast
+            end
           end
         end
 
@@ -171,14 +199,15 @@ module OctocatalogDiff
       # @param result [Array<OctocatalogDiff::Util::Parallel::Result>] Parallel task results
       # @param task_array [Array<OctocatalogDiff::Util::Parallel::Task>] Tasks to perform
       # @param logger [Logger] Logger
-      def self.run_tasks_serial(result, task_array, logger)
+      def self.run_tasks_serial(result, task_array, logger, on_result: nil, fail_fast: true)
         # Perform the tasks 1 by 1 - each successful task will replace an element in the 'result' array,
         # whereas a failed task will replace the current element with an exception, and all later tasks
         # will not be replaced (thereby being populated with the cancellation error).
         task_array.each_with_index do |ele, task_counter|
           result[task_counter] = execute_task(ele, logger)
+          on_result.call(result[task_counter]) if on_result
           next if result[task_counter].status
-          return result[task_counter].exception
+          return result[task_counter].exception if fail_fast
         end
         nil
       end
