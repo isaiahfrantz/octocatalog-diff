@@ -164,6 +164,21 @@ module OctocatalogDiff
           raise ArgumentError, 'No facts passed to "install_fact_file" method'
         end
 
+        if options[:facts_update_dir].is_a?(String)
+          update_file = File.join(options[:facts_update_dir], "#{options[:node]}.yaml")
+          if File.file?(update_file)
+            update_data = YAML.safe_load(File.read(update_file))
+            if update_data.is_a?(Hash)
+              update_data.each do |key, value|
+                old_value = facts.fact(key)
+                facts.override(key, value)
+                logger.debug("facts_update_dir: #{key} from #{old_value.inspect} to #{value.inspect}")
+              end
+              logger.debug("Applied facts update from #{update_file}")
+            end
+          end
+        end
+
         if options[:fact_override].is_a?(Array)
           options[:fact_override].each do |override|
             keys = override.key.is_a?(Regexp) ? facts.matching(override.key) : [override.key]

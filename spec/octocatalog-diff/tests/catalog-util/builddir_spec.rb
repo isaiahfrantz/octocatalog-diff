@@ -745,6 +745,68 @@ describe OctocatalogDiff::CatalogUtil::BuildDir do
       end
     end
 
+    context 'with facts_update_dir' do
+      let(:update_dir) { OctocatalogDiff::Spec.fixture_path('facts/facts-update-dir') }
+
+      it 'should merge update file over facts before writing' do
+        options = {
+          basedir: OctocatalogDiff::Spec.fixture_path('repos/default'),
+          fact_file: OctocatalogDiff::Spec.fixture_path('facts/valid-facts.yaml'),
+          facts_terminus: 'yaml',
+          node: 'rspec-node.github.net',
+          facts_update_dir: update_dir
+        }
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+        fact_file = File.join(testobj.tempdir, 'var/yaml/facts/rspec-node.github.net.yaml')
+        yaml_content = File.read(fact_file).split(/\n/)
+        yaml_content[0] = '---'
+        factobj = YAML.load(yaml_content.join("\n"))
+        expect(factobj['values']['ipaddress']).to eq('192.168.99.1')
+        expect(factobj['values']['updated_fact']).to eq('from_update_dir')
+      end
+
+      it 'should apply fact_override after the update file merge' do
+        overrides = [OctocatalogDiff::API::V1::Override.create_from_input('ipaddress=10.99.99.99')]
+        options = {
+          basedir: OctocatalogDiff::Spec.fixture_path('repos/default'),
+          fact_file: OctocatalogDiff::Spec.fixture_path('facts/valid-facts.yaml'),
+          facts_terminus: 'yaml',
+          node: 'rspec-node.github.net',
+          facts_update_dir: update_dir,
+          fact_override: overrides
+        }
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+        fact_file = File.join(testobj.tempdir, 'var/yaml/facts/rspec-node.github.net.yaml')
+        yaml_content = File.read(fact_file).split(/\n/)
+        yaml_content[0] = '---'
+        factobj = YAML.load(yaml_content.join("\n"))
+        # fact_override wins over update dir
+        expect(factobj['values']['ipaddress']).to eq('10.99.99.99')
+        # update dir fact still present
+        expect(factobj['values']['updated_fact']).to eq('from_update_dir')
+      end
+
+      it 'should do nothing if no matching file exists in the update dir' do
+        options = {
+          basedir: OctocatalogDiff::Spec.fixture_path('repos/default'),
+          fact_file: OctocatalogDiff::Spec.fixture_path('facts/valid-facts.yaml'),
+          facts_terminus: 'yaml',
+          node: 'no-such-node.example.com',
+          facts_update_dir: update_dir
+        }
+        logger, _logger_str = OctocatalogDiff::Spec.setup_logger
+        testobj = OctocatalogDiff::CatalogUtil::BuildDir.new(options, logger)
+        fact_file = File.join(testobj.tempdir, 'var/yaml/facts/no-such-node.example.com.yaml')
+        yaml_content = File.read(fact_file).split(/\n/)
+        yaml_content[0] = '---'
+        factobj = YAML.load(yaml_content.join("\n"))
+        expect(factobj['values']['ipaddress']).to eq('10.20.30.40')
+        expect(factobj['values']['updated_fact']).to be_nil
+      end
+    end
+
     context 'with invalid options' do
       it 'should raise argument error if called with :facts_terminus defined but not yaml' do
         options = {

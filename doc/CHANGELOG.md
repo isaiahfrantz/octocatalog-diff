@@ -9,6 +9,14 @@
 </thead><tbody>
 
 <tr valign=top>
+<td>2.9.0</td>
+<td>2026-04-09</td>
+<td>
+<li>(Enhancement) Add <code>--to-facts-update-dir</code> option: if a file named <code>${node}.yaml</code> exists in the given directory, its key-value pairs are merged over the node's facts for the <em>to</em> catalog only, before any <code>--fact-override</code> / <code>--to-fact-override</code> overrides are applied</li>
+</td>
+</tr>
+
+<tr valign=top>
 <td>2.8.0</td>
 <td>2026-04-08</td>
 <td>

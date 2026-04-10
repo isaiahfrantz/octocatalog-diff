@@ -40,6 +40,8 @@ Usage: octocatalog-diff [command line options]
         --fact-file STRING           Override fact globally
         --to-fact-file STRING        Override fact for the to branch
         --from-fact-file STRING      Override fact for the from branch
+        --to-facts-update-dir DIRECTORY
+                                     Directory with per-node facts update YAML files (merged into "to" catalog facts before overrides)
         --[no-]puppetdb-package-inventory
                                      Include Puppet Enterprise package inventory data, if found
         --save-catalog STRING        Save intermediate catalogs into files globally
@@ -1913,6 +1915,20 @@ with `--preserve-environments`. (<a href="../lib/octocatalog-diff/cli/options/en
       Allow override of facts on the command line. Fact overrides can be supplied for the 'to' or 'from' catalog,
 or for both. There is some attempt to handle data types here (since all items on the command line are strings)
 by permitting a data type specification as well. (<a href="../lib/octocatalog-diff/cli/options/fact_override.rb">fact_override.rb</a>)
+    </td>
+  </tr>
+
+  <tr>
+    <td valign=top>
+      <pre><code>--to-facts-update-dir DIRECTORY</code></pre>
+    </td>
+    <td valign=top>
+      Directory with per-node facts update YAML files for the to catalog
+    </td>
+    <td valign=top>
+      If a file named <code>${node}.yaml</code> exists in this directory, its key-value pairs are merged over
+the node's facts for the <em>to</em> catalog only, before any <code>--fact-override</code> or <code>--to-fact-override</code>
+overrides are applied. (<a href="../lib/octocatalog-diff/cli/options/facts_update_dir.rb">facts_update_dir.rb</a>)
     </td>
   </tr>
 
