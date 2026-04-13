@@ -62,7 +62,7 @@ describe OctocatalogDiff::CatalogDiff::Filter::YAML do
       expect(result).to eq(false)
     end
 
-    it 'should not filter out a change where YAML is unparseable' do
+    it 'should not filter out a change where YAML contains a Ruby object tag (safe_load raises Psych::DisallowedClass, rescued to false)' do
       x_str = "--- !ruby/object:This::Does::Not::Exist\n  foo: bar"
       diff = ['~', "File\ffoobar.yaml\fparameters\fcontent", x_str, x_str]
       diff_obj = OctocatalogDiff::API::V1::Diff.new(diff)

@@ -465,7 +465,6 @@ module OctocatalogDiff
         # @param class_name [String] Class name as input
         # @return [String] Class name as output
         def self.class_name_for_diffy(class_name)
-          return 'Integer' if class_name == 'Fixnum'
           class_name
         end
 

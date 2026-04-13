@@ -43,8 +43,8 @@ module OctocatalogDiff
         return unless valid_sources.any?
 
         valid_sources.each do |src|
-          src =~ %r{\Apuppet:///modules/([^/]+)/(.+)}
-          path = File.join(Regexp.last_match(1), 'files', Regexp.last_match(2))
+          m = src.match(%r{\Apuppet:///modules/([^/]+)/(.+)})
+          path = File.join(m[1], 'files', m[2])
           modulepaths.each do |mp|
             file = File.join(mp, path)
             return file if File.exist?(file)

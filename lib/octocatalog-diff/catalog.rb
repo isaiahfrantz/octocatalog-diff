@@ -257,7 +257,7 @@ module OctocatalogDiff
     # Private method: Format the name of the source file and line number, based on compilation directory and
     # other settings. This is used by format_missing_references.
     # @param source_file [String] Raw source file name from catalog
-    # @param line_number [Fixnum] Line number from catalog
+    # @param line_number [Integer] Line number from catalog
     # @return [String] Formatted source file
     def format_source_file_line(source_file, line_number)
       return '' if source_file.nil? || source_file.empty?

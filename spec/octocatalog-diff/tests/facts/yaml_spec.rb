@@ -27,6 +27,15 @@ describe OctocatalogDiff::Facts::Yaml do
       end.to raise_error(Psych::SyntaxError)
     end
 
+    it 'should reject YAML containing arbitrary Ruby objects (safe_load enforcement)' do
+      options = {
+        fact_file_string: "---\nmalicious: !ruby/object:Kernel {}\n"
+      }
+      expect do
+        OctocatalogDiff::Facts::Yaml.fact_retriever(options)
+      end.to raise_error(Psych::DisallowedClass)
+    end
+
     it 'should override the node from facts' do
       fact_file = OctocatalogDiff::Spec.fixture_path('facts/facts.yaml')
       options = {

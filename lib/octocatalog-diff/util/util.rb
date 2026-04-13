@@ -20,7 +20,7 @@ module OctocatalogDiff
       end
 
       # Utility Method!
-      # `.dup` can't be called on certain objects (Fixnum for example). This
+      # `.dup` can't be called on certain objects (Integer for example). This
       # method returns the original object if it can't be duplicated.
       # @param object [?] Object to consider
       # @return [?] Duplicated object if possible, otherwise the original object

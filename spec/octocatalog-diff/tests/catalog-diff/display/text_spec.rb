@@ -1133,6 +1133,18 @@ describe OctocatalogDiff::CatalogDiff::Display::Text do
     end
   end
 
+  describe '#class_name_for_diffy' do
+    it 'should return the class name unchanged for standard types' do
+      expect(described_class.class_name_for_diffy('String')).to eq('String')
+      expect(described_class.class_name_for_diffy('Integer')).to eq('Integer')
+      expect(described_class.class_name_for_diffy('Array')).to eq('Array')
+    end
+
+    it 'should return Fixnum unchanged (no longer remapped to Integer)' do
+      expect(described_class.class_name_for_diffy('Fixnum')).to eq('Fixnum')
+    end
+  end
+
   describe '#add_trailing_newlines' do
     it 'should add newlines when neither string ends in newline' do
       result = described_class.add_trailing_newlines('one', 'two')

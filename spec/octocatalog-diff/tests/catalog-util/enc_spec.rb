@@ -142,6 +142,18 @@ describe OctocatalogDiff::CatalogUtil::ENC do
       expect(@logger_str.string).to eq('')
     end
 
+    it 'should raise Psych::DisallowedClass if ENC content contains a Ruby object tag (safe_load enforcement)' do
+      options = {
+        enc_override: [OctocatalogDiff::API::V1::Override.create_from_input('foo=(string)bar')]
+      }
+      subject = described_class.allocate
+      subject.instance_variable_set('@options', options)
+      subject.instance_variable_set('@content', "--- !ruby/object:Kernel {}\n")
+      expect do
+        subject.send(:override_enc_parameters, @logger)
+      end.to raise_error(Psych::DisallowedClass)
+    end
+
     it 'should update @content based on override' do
       options = {
         enc_override: [OctocatalogDiff::API::V1::Override.create_from_input('foo=(string)bar')]

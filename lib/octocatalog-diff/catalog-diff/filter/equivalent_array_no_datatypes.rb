@@ -33,8 +33,8 @@ module OctocatalogDiff
           # size, because there's no possible way that they are equivalent.
           return false unless old_value.size == new_value.size
 
-          # Generate and then compare the comparable arrays.
-          old_value.map { |x| comparable_value(x) } == new_value.map { |x| comparable_value(x) }
+          # Compare element-wise without allocating two intermediate arrays.
+          old_value.zip(new_value).all? { |o, n| comparable_value(o) == comparable_value(n) }
         end
 
         # Private: Get a more easily comparable value for an array element.
