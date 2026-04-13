@@ -11,7 +11,7 @@ OctocatalogDiff::Cli::Options::Option.newoption(:facts_update_dir) do
 
   def parse(parser, options)
     parser.on('--to-facts-update-dir DIRECTORY',
-              'Directory with per-node facts update YAML files (merged into "to" catalog facts before overrides)') do |x|
+              'Directory with per-node facts update YAML files (format: <hostname>_facts_updates.yaml); merged into "to" catalog facts before overrides') do |x|
       raise Errno::ENOENT, "--to-facts-update-dir '#{x}' is not a directory" unless File.directory?(x)
       options[:to_facts_update_dir] = x
     end
